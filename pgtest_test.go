@@ -2,24 +2,25 @@ package pgtest
 
 import (
 	"database/sql"
-	_ "github.com/lib/pq"
 	"testing"
+
+	_ "github.com/lib/pq"
+	gc "gopkg.in/check.v1"
 )
 
-func TestRun(t *testing.T) {
-	pg := Start(t)
-	defer pg.Stop()
+func Test(t *testing.T) { gc.TestingT(t) }
 
-	db, err := sql.Open("postgres", pg.URL)
-	if err != nil {
-		t.Fatal("open", err)
-	}
+type S struct {
+	PGSuite
+}
+
+var _ = gc.Suite(&S{})
+
+func (s *S) TestRun(c *gc.C) {
+	db, err := sql.Open("postgres", s.URL)
+	c.Assert(err, gc.IsNil)
 	var n int
 	err = db.QueryRow("SELECT 1").Scan(&n)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if n != 1 {
-		t.Fatal("SELECT 1 = %d", n)
-	}
+	c.Assert(err, gc.IsNil)
+	c.Assert(n, gc.Equals, 1, gc.Commentf("SELECT 1 = %d", n))
 }

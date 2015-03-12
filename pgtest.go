@@ -1,19 +1,5 @@
-/*
-
-Package pgtest starts and stops a postgres server, quickly
-and conveniently, for Go unit tests. To use it:
-
-	func TestSomething(t *testing.T) {
-		pg := pgtest.Start(t)
-		defer pg.Stop()
-		db, err := sql.Open("postgres", pg.URL)
-		// etc.
-	}
-
-This package is not very configurable, though it may become
-so in the future.
-
-*/
+// Package pgtest starts and stops a postgres server, quickly
+// and conveniently, for gocheck unit tests.
 package pgtest
 
 import (
@@ -23,9 +9,10 @@ import (
 	"os/exec"
 	"path/filepath"
 	"sync"
-	"testing"
 	"text/template"
 	"time"
+
+	gc "gopkg.in/check.v1"
 )
 
 var conf = template.Must(template.New("t").Parse(`
@@ -48,85 +35,72 @@ var (
 	once     sync.Once
 )
 
-type PG struct {
+type PGSuite struct {
 	URL string // Connection URL for sql.Open.
-	t   *testing.T
-	dir string
+	Dir string
+
 	cmd *exec.Cmd
 }
 
-// Start runs postgres in a temporary directory,
+// SetUpTest runs postgres in a temporary directory,
 // with a default file set produced by initdb.
 // If an error occurs, the test will fail.
-func Start(t *testing.T) *PG {
-	once.Do(func() { maybeInitdb(t) })
+func (s *PGSuite) SetUpTest(c *gc.C) {
+	once.Do(func() { maybeInitdb(c) })
 	if !initdbOk {
-		t.Fatal("prior initdb attempt failed")
+		c.Fatal("prior initdb attempt failed")
 	}
 	var err error
-	pg := new(PG)
-	pg.t = t
-	pg.dir, err = ioutil.TempDir("", "pgtest")
-	if err != nil {
-		t.Fatal(err)
-	}
-	err = exec.Command("cp", "-a", pgtestdata+"/.", pg.dir).Run()
-	if err != nil {
-		t.Fatal("copy:", err)
-	}
-	path := filepath.Join(pg.dir, "postgresql.conf")
+	s.Dir, err = ioutil.TempDir("", "pgtest")
+	c.Assert(err, gc.IsNil)
+
+	err = exec.Command("cp", "-a", pgtestdata+"/.", s.Dir).Run()
+	c.Assert(err, gc.IsNil)
+
+	path := filepath.Join(s.Dir, "postgresql.conf")
 	f, err := os.OpenFile(path, os.O_APPEND|os.O_WRONLY, 0666)
-	if err != nil {
-		t.Fatal(err)
-	}
+	c.Assert(err, gc.IsNil)
+
 	plural := !contains("unix_socket_directory", path)
 	err = conf.Execute(f, struct {
 		ConfDir string
 		Plural  bool
-	}{pg.dir, plural})
-	if err != nil {
-		t.Fatal(err)
-	}
+	}{s.Dir, plural})
+	c.Assert(err, gc.IsNil)
+
 	err = f.Close()
-	if err != nil {
-		t.Fatal(err)
-	}
-	pg.URL = "host=" + pg.dir + " dbname=postgres sslmode=disable"
-	pg.cmd = exec.Command(postgres, "-D", pg.dir)
-	err = pg.cmd.Start()
-	if err != nil {
-		t.Fatal("starting postgres:", err)
-	}
-	sock := filepath.Join(pg.dir, ".s.PGSQL.5432")
+	c.Assert(err, gc.IsNil)
+
+	s.URL = "host=" + s.Dir + " dbname=postgres sslmode=disable"
+	s.cmd = exec.Command(postgres, "-D", s.Dir)
+	err = s.cmd.Start()
+	c.Assert(err, gc.IsNil, gc.Commentf("starting postgres"))
+
+	sock := filepath.Join(s.Dir, ".s.PGSQL.5432")
 	for n := 0; n < 20; n++ {
 		if _, err := os.Stat(sock); err == nil {
-			return pg
+			return
 		}
 		time.Sleep(50 * time.Millisecond)
 	}
-	t.Fatal("timeout waiting for postgres to start")
+	c.Fatal("timeout waiting for postgres to start")
 	panic("unreached")
 }
 
-// Stop stops the running postgres process and removes its
+// TearDownTest stops the running postgres process and removes its
 // temporary data directory.
 // If an error occurs, the test will fail.
-func (pg *PG) Stop() {
-	err := pg.cmd.Process.Signal(os.Interrupt)
-	if err != nil {
-		pg.t.Fatal("postgres:", err)
-	}
-	err = os.RemoveAll(pg.dir)
-	if err != nil {
-		pg.t.Fatal(err)
-	}
+func (s *PGSuite) TearDownTest(c *gc.C) {
+	err := s.cmd.Process.Signal(os.Interrupt)
+	c.Assert(err, gc.IsNil)
+	err = os.RemoveAll(s.Dir)
+	c.Assert(err, gc.IsNil)
 }
 
-func maybeInitdb(t *testing.T) {
+func maybeInitdb(c *gc.C) {
 	out, err := exec.Command("pg_config", "--bindir").Output()
-	if err != nil {
-		t.Fatal("pg_config", err)
-	}
+	c.Assert(err, gc.IsNil, gc.Commentf("pg_config"))
+
 	bindir := string(bytes.TrimSpace(out))
 	postgres = filepath.Join(bindir, "postgres")
 	initdb := filepath.Join(bindir, "initdb")
@@ -135,13 +109,11 @@ func maybeInitdb(t *testing.T) {
 		initdbOk = true
 		return
 	}
-	if err != nil {
-		t.Fatal(err)
-	}
+	c.Assert(err, gc.IsNil)
 	err = exec.Command(initdb, "-D", pgtestdata).Run()
 	if err != nil {
 		os.RemoveAll(pgtestdata)
-		t.Fatal("initdb", err)
+		c.Fatal("initdb", err)
 	}
 	initdbOk = true
 }
