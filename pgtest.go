@@ -76,6 +76,7 @@ func (s *PGSuite) SetUpTest(c *gc.C) {
 	err = s.cmd.Start()
 	c.Assert(err, gc.IsNil, gc.Commentf("starting postgres"))
 
+	c.Log("starting postgres in", s.Dir)
 	sock := filepath.Join(s.Dir, ".s.PGSQL.5432")
 	for n := 0; n < 20; n++ {
 		if _, err := os.Stat(sock); err == nil {
@@ -92,6 +93,8 @@ func (s *PGSuite) SetUpTest(c *gc.C) {
 // If an error occurs, the test will fail.
 func (s *PGSuite) TearDownTest(c *gc.C) {
 	err := s.cmd.Process.Signal(os.Interrupt)
+	c.Assert(err, gc.IsNil)
+	err = s.cmd.Wait()
 	c.Assert(err, gc.IsNil)
 	err = os.RemoveAll(s.Dir)
 	c.Assert(err, gc.IsNil)
