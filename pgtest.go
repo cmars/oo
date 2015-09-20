@@ -8,7 +8,6 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
-	"sync"
 	"text/template"
 	"time"
 
@@ -27,34 +26,38 @@ unix_socket_directory = '{{.ConfDir}}'
 
 `))
 
-var pgtestdata = filepath.Join(os.TempDir(), "pgtestdata1")
-
-var (
-	postgres string
-	initdbOk = false
-	once     sync.Once
-)
-
 type PGSuite struct {
+	// initdbDir will contain the path to the default file set produced by
+	// initdb.
+	initdbDir string
+	// postgres is the discovered path to the postgres binary.
+	postgres string
+
 	URL string // Connection URL for sql.Open.
 	Dir string
 
 	cmd *exec.Cmd
 }
 
+func (s *PGSuite) SetUpSuite(c *gc.C) {
+	s.initdbDir = c.MkDir()
+	out, err := exec.Command("pg_config", "--bindir").Output()
+	c.Assert(err, gc.IsNil, gc.Commentf("pg_config"))
+
+	bindir := string(bytes.TrimSpace(out))
+	s.postgres = filepath.Join(bindir, "postgres")
+	initdb := filepath.Join(bindir, "initdb")
+	err = exec.Command(initdb, "-D", s.initdbDir).Run()
+	c.Assert(err, gc.IsNil, gc.Commentf("initdb"))
+}
+
 // SetUpTest runs postgres in a temporary directory,
 // with a default file set produced by initdb.
 // If an error occurs, the test will fail.
 func (s *PGSuite) SetUpTest(c *gc.C) {
-	once.Do(func() { maybeInitdb(c) })
-	if !initdbOk {
-		c.Fatal("prior initdb attempt failed")
-	}
-	var err error
-	s.Dir, err = ioutil.TempDir("", "pgtest")
-	c.Assert(err, gc.IsNil)
+	s.Dir = c.MkDir()
 
-	err = exec.Command("cp", "-a", pgtestdata+"/.", s.Dir).Run()
+	err := exec.Command("cp", "-a", s.initdbDir+"/.", s.Dir).Run()
 	c.Assert(err, gc.IsNil)
 
 	path := filepath.Join(s.Dir, "postgresql.conf")
@@ -72,7 +75,7 @@ func (s *PGSuite) SetUpTest(c *gc.C) {
 	c.Assert(err, gc.IsNil)
 
 	s.URL = "host=" + s.Dir + " dbname=postgres sslmode=disable"
-	s.cmd = exec.Command(postgres, "-D", s.Dir)
+	s.cmd = exec.Command(s.postgres, "-D", s.Dir)
 	err = s.cmd.Start()
 	c.Assert(err, gc.IsNil, gc.Commentf("starting postgres"))
 
@@ -98,27 +101,6 @@ func (s *PGSuite) TearDownTest(c *gc.C) {
 	c.Assert(err, gc.IsNil)
 	err = os.RemoveAll(s.Dir)
 	c.Assert(err, gc.IsNil)
-}
-
-func maybeInitdb(c *gc.C) {
-	out, err := exec.Command("pg_config", "--bindir").Output()
-	c.Assert(err, gc.IsNil, gc.Commentf("pg_config"))
-
-	bindir := string(bytes.TrimSpace(out))
-	postgres = filepath.Join(bindir, "postgres")
-	initdb := filepath.Join(bindir, "initdb")
-	err = os.Mkdir(pgtestdata, 0777)
-	if os.IsExist(err) {
-		initdbOk = true
-		return
-	}
-	c.Assert(err, gc.IsNil)
-	err = exec.Command(initdb, "-D", pgtestdata).Run()
-	if err != nil {
-		os.RemoveAll(pgtestdata)
-		c.Fatal("initdb", err)
-	}
-	initdbOk = true
 }
 
 func contains(substr, name string) bool {
