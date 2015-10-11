@@ -2,8 +2,11 @@
 TOOLS_BIN := ../tools/bin
 
 CFSSL=$(TOOLS_BIN)/cfssl
+JQ=jq
 
-all: ca localhost.cert.json api.oo.cmars.tech.cert.json
+all: ca \
+	localhost.pem localhost-key.pem \
+	api.oo.cmars.tech.pem api.oo.cmars.tech-key.pem
 
 ca: ca.csr ca-key.pem ca.pem
 
@@ -13,13 +16,18 @@ ca.csr ca-key.pem ca.pem: ca.json
 %.cert.json: %.csr.json
 	$(CFSSL) gencert -hostname $* $< > $@
 
+%.pem %-key.pem: %.cert.json
+	$(JQ) -r .cert $*.cert.json > $*.pem
+	cat ca.pem >> $*.pem
+	$(JQ) -r .key $*.cert.json > $*-key.pem
+
 destroy: destroy-ca destroy-cert
 
 destroy-ca:
 	$(RM) ca.csr ca-key.pem ca.pem
 
 destroy-cert:
-	$(RM) *.cert.json
+	$(RM) *.cert.json localhost*.pem api.oo*.pem
 
 .PHONY: ca all destroy destroy-ca destroy-cert
 
