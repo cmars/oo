@@ -17,7 +17,7 @@ There, now wasn't that easy? :)
 
 # Tooling
 
-[Cloudflare CFSSL](https://github.com/cloudflare/cfssl) will be used to manage
+[Cloudflare CFSSL](https://github.com/cloudflare/cfssl) is used to manage
 X.509 certificates for deploying with TLS. This tool is also vendored. To build
 a starting point PKI for this:
 
