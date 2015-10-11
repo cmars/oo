@@ -1,0 +1,15 @@
+{
+	"hosts": [
+		"ootheca.cmars.tech"
+	],
+	"key": {
+		"algo": "ecdsa",
+		"size": 384
+	},
+	"names": [
+		{
+			"O": "Cmars Technologies LLC",
+			"OU": "Certification Authority"
+		}
+	]
+}
