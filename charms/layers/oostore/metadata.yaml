@@ -1,0 +1,12 @@
+name: oostore
+summary: Opaque object storage service.
+maintainer: cmars@cmarstech.com
+description: |
+  oostore manages small, sensitive secrets such as passwords, auth tokens and
+  private keys, which are end-to-end encrypted by the clients creating and
+  accessing them.
+tags:
+  - security
+requires:
+  database:
+    interface: pgsql
