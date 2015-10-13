@@ -1,1 +1,1 @@
-includes: ['layer:basic', 'interface:pgsql']
+includes: ['layer:basic', 'layers/pgsql']
