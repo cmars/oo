@@ -35,7 +35,7 @@ def config_changed():
         if config.previous('http_port'):
             hookenv.close_port(config.previous('http_port'))
         hookenv.open_port(config['http_port'])
-    if config.changed('http_port'):
+    if config.changed('https_port'):
         if config.previous('https_port'):
             hookenv.close_port(config.previous('https_port'))
         hookenv.open_port(config['https_port'])

@@ -1,0 +1,20 @@
+options:
+  deployment:
+    type: string
+    description: Deployment type (production, staging, devel)
+    default: production
+  http_port:
+    type: int
+    description: HTTP listen port
+    default: 20080
+  https_port:
+    type: int
+    description: HTTPS listen port. Only used if cert and key are set.
+    default: 20443
+  cert:
+    type: string
+    description: TLS server PEM certificate appended with CA certificate PEM(s)
+  key:
+    type: string
+    description: TLS server private key (PEM format)
+
