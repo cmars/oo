@@ -12,8 +12,8 @@ setgid oostore
 {% set etc_dir %}/srv/oostore/{{ cfg.deployment }}/etc{% endset %}
 
 exec {{ bin_dir }}/oostore{#
--#}{% if cfg.http_port %} --http :{{ cfg.http_port }}{% endif %}{#
--#}{% if cfg.https_port and cfg.cert and cfg.key %} --https :{{ cfg.https_port }} --cert {{ etc_dir }}/cert.pem --key {{ etc_dir }}/key.pem{% endif %}{#
--#}{% if prefix %} --prefix "{{ prefix }}"{% endif %}{#
--#} postgres://{{db.user()}}:{{db.password()}}@{{db.host()}}/{{db.database()}}
+#}{% if cfg.http_port %} --http :{{ cfg.http_port }}{% endif %}{#
+#}{% if cfg.https_port and cfg.cert and cfg.key %} --https :{{ cfg.https_port }} --cert {{ etc_dir }}/cert.pem --key {{ etc_dir }}/key.pem{% endif %}{#
+#}{% if prefix %} --prefix "{{ prefix }}"{% endif %}{#
+#} postgres://{{db.user()}}:{{db.password()}}@{{db.host()}}/{{db.database()}}
 
