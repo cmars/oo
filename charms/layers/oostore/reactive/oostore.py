@@ -1,4 +1,5 @@
 import os
+import pwd
 import shutil
 
 from charmhelpers.core import hookenv, host
@@ -93,6 +94,8 @@ def setup(pg, _):
         with open(key_file, "w") as fh:
             fh.write(config['key'])
         os.chmod(key_file, 0o600)
+        user = pwd.getpwnam('oostore')
+        os.chown(key_file, user[2], user[3])
     else:
         if os.path.exists(cert_file):
             os.unlink(key_file)
