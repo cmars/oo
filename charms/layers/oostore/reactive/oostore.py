@@ -126,3 +126,8 @@ def oostore_started():
     
     hookenv.status_set('active', 'Ready')
 
+
+@when('website.available')
+def configure_website(website):
+    config = hookenv.config()
+    website.configure(config['port'])
