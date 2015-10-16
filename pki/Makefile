@@ -2,6 +2,7 @@
 TOOLS_BIN := ../tools/bin
 
 CFSSL=$(TOOLS_BIN)/cfssl
+CFSSLJSON=$(TOOLS_BIN)/cfssljson
 JQ=jq
 
 all: ca \
@@ -11,7 +12,7 @@ all: ca \
 ca: ca.csr ca-key.pem ca.pem
 
 ca.csr ca-key.pem ca.pem: ca.json
-	$(CFSSL) genkey -initca $< | cfssljson -bare ca
+	$(CFSSL) genkey -initca $< | $(CFSSLJSON) -bare ca
 
 %.cert.json: %.csr.json
 	$(CFSSL) gencert -hostname $* $< > $@
