@@ -133,4 +133,4 @@ def oostore_started():
 @when('website.available')
 def configure_website(website):
     config = hookenv.config()
-    website.configure(config['port'])
+    website.configure(config['http_port'])
