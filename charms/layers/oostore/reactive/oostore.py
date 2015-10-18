@@ -67,6 +67,10 @@ def stop_oostore():
 
 @when('oostore.configured', 'database.connected', 'database.database.available')
 def setup(pg, _):
+    remove_state('oostore.start')
+    if is_state('oostore.started'):
+        host.service_stop('oostore')
+
     config = hookenv.config()
     render(source="upstart",
         target="/etc/init/oostore.conf",
@@ -101,7 +105,10 @@ def setup(pg, _):
             os.unlink(key_file)
 
     set_state('oostore.start')
-    hookenv.status_set('maintenance', 'Starting oostore')
+    if is_state('oostore.started'):
+        host.service_start('oostore')
+    else:
+        hookenv.status_set('maintenance', 'Starting oostore')
 
 
 @when('oostore.available')

@@ -17,4 +17,6 @@ options:
   key:
     type: string
     description: TLS server private key (PEM format)
-
+  prefix:
+    type: string
+    description: API path prefix
