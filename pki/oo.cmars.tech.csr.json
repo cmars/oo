@@ -1,0 +1,20 @@
+{
+    "CN": "oo.cmars.tech",
+    "hosts": [
+        "oo.cmars.tech"
+    ],
+    "key": {
+        "algo": "ecdsa",
+        "size": 384
+    },
+    "names": [
+        {
+            "C": "US",
+            "L": "San Marcos",
+            "ST": "Texas",
+            "O": "Cmars Technologies LLC",
+            "OU": "Opaque Object Storage Service"
+        }
+    ]
+}
+
