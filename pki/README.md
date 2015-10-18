@@ -25,7 +25,7 @@ one for localhost. This is useful for development purposes.
 
 1. Create a
    [CSRJSON](https://github.com/cloudflare/cfssl#generating-certificate-signing-request-and-private-key)
-   file named <hostname>.csr.json in this directory.
+   file named `<hostname>.csr.json` in this directory.
 2. `make <hostname>.pem` to generate a private key and issue a certificate with
    the self-signed CA.
 3. `make <hostname>-csr.pem` to generate a private key and CSR.
