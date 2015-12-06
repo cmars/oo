@@ -196,9 +196,9 @@ FindKey:
 		// Try the symmetric passphrase first
 		if len(symKeys) != 0 && passphrase != nil {
 			for _, s := range symKeys {
-				key, cipherFunc, err := s.Decrypt(passphrase)
-				if err == nil {
-					decrypted, err = se.Decrypt(cipherFunc, key)
+				err = s.Decrypt(passphrase)
+				if err == nil && !s.Encrypted {
+					decrypted, err = se.Decrypt(s.CipherFunc, s.Key)
 					if err != nil && err != errors.ErrKeyIncorrect {
 						return nil, err
 					}
