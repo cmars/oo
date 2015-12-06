@@ -13,7 +13,6 @@ import (
 	"net/http"
 	"net/url"
 	"os"
-	"path"
 	"runtime"
 	"strings"
 	"time"
@@ -39,8 +38,6 @@ func init() {
 }
 
 type Handler struct {
-	// Prefix is the URL path prefix to strip from WebDAV resource paths.
-	Prefix string
 	// FileSystem is the virtual file system.
 	FileSystem FileSystem
 	// LockSystem is the lock management system.
@@ -48,16 +45,6 @@ type Handler struct {
 	// Logger is an optional error logger. If non-nil, it will be called
 	// for all HTTP requests.
 	Logger func(*http.Request, error)
-}
-
-func (h *Handler) stripPrefix(p string) (string, int, error) {
-	if h.Prefix == "" {
-		return p, http.StatusOK, nil
-	}
-	if r := strings.TrimPrefix(p, h.Prefix); len(r) < len(p) {
-		return r, http.StatusOK, nil
-	}
-	return p, http.StatusNotFound, errPrefixMismatch
 }
 
 func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
@@ -188,12 +175,8 @@ func (h *Handler) confirmLocks(r *http.Request, src, dst string) (release func()
 }
 
 func (h *Handler) handleOptions(w http.ResponseWriter, r *http.Request) (status int, err error) {
-	reqPath, status, err := h.stripPrefix(r.URL.Path)
-	if err != nil {
-		return status, err
-	}
 	allow := "OPTIONS, LOCK, PUT, MKCOL"
-	if fi, err := h.FileSystem.Stat(reqPath); err == nil {
+	if fi, err := h.FileSystem.Stat(r.URL.Path); err == nil {
 		if fi.IsDir() {
 			allow = "OPTIONS, LOCK, GET, HEAD, POST, DELETE, PROPPATCH, COPY, MOVE, UNLOCK, PROPFIND"
 		} else {
@@ -209,12 +192,8 @@ func (h *Handler) handleOptions(w http.ResponseWriter, r *http.Request) (status 
 }
 
 func (h *Handler) handleGetHeadPost(w http.ResponseWriter, r *http.Request) (status int, err error) {
-	reqPath, status, err := h.stripPrefix(r.URL.Path)
-	if err != nil {
-		return status, err
-	}
 	// TODO: check locks for read-only access??
-	f, err := h.FileSystem.OpenFile(reqPath, os.O_RDONLY, 0)
+	f, err := h.FileSystem.OpenFile(r.URL.Path, os.O_RDONLY, 0)
 	if err != nil {
 		return http.StatusNotFound, err
 	}
@@ -224,23 +203,19 @@ func (h *Handler) handleGetHeadPost(w http.ResponseWriter, r *http.Request) (sta
 		return http.StatusNotFound, err
 	}
 	if !fi.IsDir() {
-		etag, err := findETag(h.FileSystem, h.LockSystem, reqPath, fi)
+		etag, err := findETag(h.FileSystem, h.LockSystem, r.URL.Path, fi)
 		if err != nil {
 			return http.StatusInternalServerError, err
 		}
 		w.Header().Set("ETag", etag)
 	}
 	// Let ServeContent determine the Content-Type header.
-	http.ServeContent(w, r, reqPath, fi.ModTime(), f)
+	http.ServeContent(w, r, r.URL.Path, fi.ModTime(), f)
 	return 0, nil
 }
 
 func (h *Handler) handleDelete(w http.ResponseWriter, r *http.Request) (status int, err error) {
-	reqPath, status, err := h.stripPrefix(r.URL.Path)
-	if err != nil {
-		return status, err
-	}
-	release, status, err := h.confirmLocks(r, reqPath, "")
+	release, status, err := h.confirmLocks(r, r.URL.Path, "")
 	if err != nil {
 		return status, err
 	}
@@ -251,24 +226,20 @@ func (h *Handler) handleDelete(w http.ResponseWriter, r *http.Request) (status i
 	// "godoc os RemoveAll" says that "If the path does not exist, RemoveAll
 	// returns nil (no error)." WebDAV semantics are that it should return a
 	// "404 Not Found". We therefore have to Stat before we RemoveAll.
-	if _, err := h.FileSystem.Stat(reqPath); err != nil {
+	if _, err := h.FileSystem.Stat(r.URL.Path); err != nil {
 		if os.IsNotExist(err) {
 			return http.StatusNotFound, err
 		}
 		return http.StatusMethodNotAllowed, err
 	}
-	if err := h.FileSystem.RemoveAll(reqPath); err != nil {
+	if err := h.FileSystem.RemoveAll(r.URL.Path); err != nil {
 		return http.StatusMethodNotAllowed, err
 	}
 	return http.StatusNoContent, nil
 }
 
 func (h *Handler) handlePut(w http.ResponseWriter, r *http.Request) (status int, err error) {
-	reqPath, status, err := h.stripPrefix(r.URL.Path)
-	if err != nil {
-		return status, err
-	}
-	release, status, err := h.confirmLocks(r, reqPath, "")
+	release, status, err := h.confirmLocks(r, r.URL.Path, "")
 	if err != nil {
 		return status, err
 	}
@@ -276,7 +247,7 @@ func (h *Handler) handlePut(w http.ResponseWriter, r *http.Request) (status int,
 	// TODO(rost): Support the If-Match, If-None-Match headers? See bradfitz'
 	// comments in http.checkEtag.
 
-	f, err := h.FileSystem.OpenFile(reqPath, os.O_RDWR|os.O_CREATE|os.O_TRUNC, 0666)
+	f, err := h.FileSystem.OpenFile(r.URL.Path, os.O_RDWR|os.O_CREATE|os.O_TRUNC, 0666)
 	if err != nil {
 		return http.StatusNotFound, err
 	}
@@ -293,7 +264,7 @@ func (h *Handler) handlePut(w http.ResponseWriter, r *http.Request) (status int,
 	if closeErr != nil {
 		return http.StatusMethodNotAllowed, closeErr
 	}
-	etag, err := findETag(h.FileSystem, h.LockSystem, reqPath, fi)
+	etag, err := findETag(h.FileSystem, h.LockSystem, r.URL.Path, fi)
 	if err != nil {
 		return http.StatusInternalServerError, err
 	}
@@ -302,11 +273,7 @@ func (h *Handler) handlePut(w http.ResponseWriter, r *http.Request) (status int,
 }
 
 func (h *Handler) handleMkcol(w http.ResponseWriter, r *http.Request) (status int, err error) {
-	reqPath, status, err := h.stripPrefix(r.URL.Path)
-	if err != nil {
-		return status, err
-	}
-	release, status, err := h.confirmLocks(r, reqPath, "")
+	release, status, err := h.confirmLocks(r, r.URL.Path, "")
 	if err != nil {
 		return status, err
 	}
@@ -315,7 +282,7 @@ func (h *Handler) handleMkcol(w http.ResponseWriter, r *http.Request) (status in
 	if r.ContentLength > 0 {
 		return http.StatusUnsupportedMediaType, nil
 	}
-	if err := h.FileSystem.Mkdir(reqPath, 0777); err != nil {
+	if err := h.FileSystem.Mkdir(r.URL.Path, 0777); err != nil {
 		if os.IsNotExist(err) {
 			return http.StatusConflict, err
 		}
@@ -337,16 +304,7 @@ func (h *Handler) handleCopyMove(w http.ResponseWriter, r *http.Request) (status
 		return http.StatusBadGateway, errInvalidDestination
 	}
 
-	src, status, err := h.stripPrefix(r.URL.Path)
-	if err != nil {
-		return status, err
-	}
-
-	dst, status, err := h.stripPrefix(u.Path)
-	if err != nil {
-		return status, err
-	}
-
+	dst, src := u.Path, r.URL.Path
 	if dst == "" {
 		return http.StatusBadGateway, errInvalidDestination
 	}
@@ -440,12 +398,8 @@ func (h *Handler) handleLock(w http.ResponseWriter, r *http.Request) (retStatus 
 				return http.StatusBadRequest, errInvalidDepth
 			}
 		}
-		reqPath, status, err := h.stripPrefix(r.URL.Path)
-		if err != nil {
-			return status, err
-		}
 		ld = LockDetails{
-			Root:      reqPath,
+			Root:      r.URL.Path,
 			Duration:  duration,
 			OwnerXML:  li.Owner.InnerXML,
 			ZeroDepth: depth == 0,
@@ -464,8 +418,8 @@ func (h *Handler) handleLock(w http.ResponseWriter, r *http.Request) (retStatus 
 		}()
 
 		// Create the resource if it didn't previously exist.
-		if _, err := h.FileSystem.Stat(reqPath); err != nil {
-			f, err := h.FileSystem.OpenFile(reqPath, os.O_RDWR|os.O_CREATE|os.O_TRUNC, 0666)
+		if _, err := h.FileSystem.Stat(r.URL.Path); err != nil {
+			f, err := h.FileSystem.OpenFile(r.URL.Path, os.O_RDWR|os.O_CREATE|os.O_TRUNC, 0666)
 			if err != nil {
 				// TODO: detect missing intermediate dirs and return http.StatusConflict?
 				return http.StatusInternalServerError, err
@@ -514,11 +468,7 @@ func (h *Handler) handleUnlock(w http.ResponseWriter, r *http.Request) (status i
 }
 
 func (h *Handler) handlePropfind(w http.ResponseWriter, r *http.Request) (status int, err error) {
-	reqPath, status, err := h.stripPrefix(r.URL.Path)
-	if err != nil {
-		return status, err
-	}
-	fi, err := h.FileSystem.Stat(reqPath)
+	fi, err := h.FileSystem.Stat(r.URL.Path)
 	if err != nil {
 		if os.IsNotExist(err) {
 			return http.StatusNotFound, err
@@ -539,13 +489,13 @@ func (h *Handler) handlePropfind(w http.ResponseWriter, r *http.Request) (status
 
 	mw := multistatusWriter{w: w}
 
-	walkFn := func(reqPath string, info os.FileInfo, err error) error {
+	walkFn := func(path string, info os.FileInfo, err error) error {
 		if err != nil {
 			return err
 		}
 		var pstats []Propstat
 		if pf.Propname != nil {
-			pnames, err := propnames(h.FileSystem, h.LockSystem, reqPath)
+			pnames, err := propnames(h.FileSystem, h.LockSystem, path)
 			if err != nil {
 				return err
 			}
@@ -555,17 +505,17 @@ func (h *Handler) handlePropfind(w http.ResponseWriter, r *http.Request) (status
 			}
 			pstats = append(pstats, pstat)
 		} else if pf.Allprop != nil {
-			pstats, err = allprop(h.FileSystem, h.LockSystem, reqPath, pf.Prop)
+			pstats, err = allprop(h.FileSystem, h.LockSystem, path, pf.Prop)
 		} else {
-			pstats, err = props(h.FileSystem, h.LockSystem, reqPath, pf.Prop)
+			pstats, err = props(h.FileSystem, h.LockSystem, path, pf.Prop)
 		}
 		if err != nil {
 			return err
 		}
-		return mw.write(makePropstatResponse(path.Join(h.Prefix, reqPath), pstats))
+		return mw.write(makePropstatResponse(path, pstats))
 	}
 
-	walkErr := walkFS(h.FileSystem, depth, reqPath, fi, walkFn)
+	walkErr := walkFS(h.FileSystem, depth, r.URL.Path, fi, walkFn)
 	closeErr := mw.close()
 	if walkErr != nil {
 		return http.StatusInternalServerError, walkErr
@@ -577,17 +527,13 @@ func (h *Handler) handlePropfind(w http.ResponseWriter, r *http.Request) (status
 }
 
 func (h *Handler) handleProppatch(w http.ResponseWriter, r *http.Request) (status int, err error) {
-	reqPath, status, err := h.stripPrefix(r.URL.Path)
-	if err != nil {
-		return status, err
-	}
-	release, status, err := h.confirmLocks(r, reqPath, "")
+	release, status, err := h.confirmLocks(r, r.URL.Path, "")
 	if err != nil {
 		return status, err
 	}
 	defer release()
 
-	if _, err := h.FileSystem.Stat(reqPath); err != nil {
+	if _, err := h.FileSystem.Stat(r.URL.Path); err != nil {
 		if os.IsNotExist(err) {
 			return http.StatusNotFound, err
 		}
@@ -597,7 +543,7 @@ func (h *Handler) handleProppatch(w http.ResponseWriter, r *http.Request) (statu
 	if err != nil {
 		return status, err
 	}
-	pstats, err := patch(h.FileSystem, h.LockSystem, reqPath, patches)
+	pstats, err := patch(h.FileSystem, h.LockSystem, r.URL.Path, patches)
 	if err != nil {
 		return http.StatusInternalServerError, err
 	}
@@ -659,6 +605,29 @@ func parseDepth(s string) int {
 	return invalidDepth
 }
 
+// StripPrefix is like http.StripPrefix but it also strips the prefix from any
+// Destination headers, so that COPY and MOVE requests also see stripped paths.
+func StripPrefix(prefix string, h http.Handler) http.Handler {
+	if prefix == "" {
+		return h
+	}
+	h = http.StripPrefix(prefix, h)
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		dsts := r.Header["Destination"]
+		for i, dst := range dsts {
+			u, err := url.Parse(dst)
+			if err != nil {
+				continue
+			}
+			if p := strings.TrimPrefix(u.Path, prefix); len(p) < len(u.Path) {
+				u.Path = p
+				dsts[i] = u.String()
+			}
+		}
+		h.ServeHTTP(w, r)
+	})
+}
+
 // http://www.webdav.org/specs/rfc4918.html#status.code.extensions.to.http11
 const (
 	StatusMulti               = 207
@@ -699,7 +668,6 @@ var (
 	errNoFileSystem            = errors.New("webdav: no file system")
 	errNoLockSystem            = errors.New("webdav: no lock system")
 	errNotADirectory           = errors.New("webdav: not a directory")
-	errPrefixMismatch          = errors.New("webdav: prefix mismatch")
 	errRecursionTooDeep        = errors.New("webdav: recursion too deep")
 	errUnsupportedLockInfo     = errors.New("webdav: unsupported lock info")
 	errUnsupportedMethod       = errors.New("webdav: unsupported method")
