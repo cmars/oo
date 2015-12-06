@@ -33,10 +33,9 @@ func countParams(path string) uint8 {
 type nodeType uint8
 
 const (
-	static nodeType = iota // default
-	root
-	param
-	catchAll
+	static   nodeType = 0
+	param    nodeType = 1
+	catchAll nodeType = 2
 )
 
 type node struct {
@@ -196,7 +195,6 @@ func (n *node) addRoute(path string, handle Handle) {
 		}
 	} else { // Empty tree
 		n.insertChild(numParams, path, fullPath, handle)
-		n.nType = root
 	}
 }
 
@@ -410,11 +408,6 @@ walk: // Outer loop for walking the tree
 			// We should have reached the node containing the handle.
 			// Check if this node has a handle registered.
 			if handle = n.handle; handle != nil {
-				return
-			}
-
-			if path == "/" && n.wildChild && n.nType != root {
-				tsr = true
 				return
 			}
 
