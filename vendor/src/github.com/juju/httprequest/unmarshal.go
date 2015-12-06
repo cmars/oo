@@ -27,12 +27,9 @@ var (
 //	"path" - the field is taken from a parameter in p.PathVar
 //		with a matching field name.
 //
-// 	"form" - the field is taken from the given name in p.Request.Form
+// 	"form" - the field is taken from the given name in p.Form
 //		(note that this covers both URL query parameters and
-//		POST form parameters).
-//
-//	"header" - the field is taken from the given name in
-//		p.Request.Header.
+//		POST form parameters)
 //
 //	"body" - the field is filled in by parsing the request body
 //		as JSON.
@@ -90,14 +87,10 @@ func getUnmarshaler(tag tag, t reflect.Type) (unmarshaler, error) {
 	case tag.source == sourceBody:
 		return unmarshalBody, nil
 	case t == reflect.TypeOf([]string(nil)):
-		switch tag.source {
-		default:
+		if tag.source != sourceForm {
 			return nil, errgo.New("invalid target type []string for path parameter")
-		case sourceForm:
-			return unmarshalAllField(tag.name), nil
-		case sourceHeader:
-			return unmarshalAllHeader(tag.name), nil
 		}
+		return unmarshalAllField(tag.name), nil
 	case t == reflect.TypeOf(""):
 		return unmarshalString(tag), nil
 	case implementsTextUnmarshaler(t):
@@ -120,18 +113,6 @@ func unmarshalNop(v reflect.Value, p Params, makeResult resultMaker) error {
 func unmarshalAllField(name string) unmarshaler {
 	return func(v reflect.Value, p Params, makeResult resultMaker) error {
 		vals := p.Request.Form[name]
-		if len(vals) > 0 {
-			makeResult(v).Set(reflect.ValueOf(vals))
-		}
-		return nil
-	}
-}
-
-// unmarshalAllHeader unmarshals all the header fields for a given
-// attribute into a []string slice.
-func unmarshalAllHeader(name string) unmarshaler {
-	return func(v reflect.Value, p Params, makeResult resultMaker) error {
-		vals := p.Request.Header[name]
 		if len(vals) > 0 {
 			makeResult(v).Set(reflect.ValueOf(vals))
 		}
@@ -192,13 +173,6 @@ var formGetters = []func(name string, p Params) (string, bool){
 		return "", false
 	},
 	sourceBody: nil,
-	sourceHeader: func(name string, p Params) (string, bool) {
-		vs := p.Request.Header[name]
-		if len(vs) == 0 {
-			return "", false
-		}
-		return vs[0], true
-	},
 }
 
 // encodingTextUnmarshaler is the same as encoding.TextUnmarshaler
