@@ -35,7 +35,15 @@ func (s *SenderSuite) SetUpTest(c *gc.C) {
 	s.sender = quorum.NewMemSender()
 }
 
-func (s *SenderSuite) TestSending(c *gc.C) {
+func (s *SenderSuite) TestValidate(c *gc.C) {
+	err := s.sender.ValidateRecipient("alice")
+	c.Assert(err, gc.ErrorMatches, "not found")
+	s.sender.Register("alice", func(b quorum.Ballot) error { panic("not called") })
+	err = s.sender.ValidateRecipient("alice")
+	c.Assert(err, gc.IsNil)
+}
+
+func (s *SenderSuite) TestSend(c *gc.C) {
 	var err error
 	var mu sync.Mutex
 	var recipients []string
