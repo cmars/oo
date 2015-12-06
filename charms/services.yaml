@@ -1,0 +1,15 @@
+series: trusty
+
+services:
+    oostore:
+        charm: "local:trusty/oostore"
+        expose: True
+        num_units: 1
+    postgresql:
+        charm: "postgresql"
+        num_units: 1
+
+relations:
+    - - oostore:database
+      - postgresql:db
+

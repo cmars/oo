@@ -1,10 +1,10 @@
 
 PROJECT_ROOT := $(shell cd ../../..; pwd)
 
-all: files/oostore compose
+all: files/oostore build
 
-compose:
-	JUJU_REPOSITORY=$(PROJECT_ROOT)/charms charm compose
+build:
+	JUJU_REPOSITORY=$(PROJECT_ROOT)/charms charm build
 
 files/oostore: $(PROJECT_ROOT)/bin/oostore
 	mkdir -p files
