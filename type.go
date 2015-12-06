@@ -235,7 +235,6 @@ const (
 	sourcePath
 	sourceForm
 	sourceBody
-	sourceHeader
 )
 
 type tag struct {
@@ -265,8 +264,6 @@ func parseTag(rtag reflect.StructTag, fieldName string) (tag, error) {
 			t.source = sourceForm
 		case "body":
 			t.source = sourceBody
-		case "header":
-			t.source = sourceHeader
 		default:
 			return tag{}, fmt.Errorf("unknown tag flag %q", f)
 		}
