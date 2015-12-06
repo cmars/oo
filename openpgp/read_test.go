@@ -243,7 +243,7 @@ func TestUnspecifiedRecipient(t *testing.T) {
 }
 
 func TestSymmetricallyEncrypted(t *testing.T) {
-	firstTimeCalled := true
+	expected := "Symmetrically encrypted.\n"
 
 	prompt := func(keys []Key, symmetric bool) ([]byte, error) {
 		if len(keys) != 0 {
@@ -252,11 +252,6 @@ func TestSymmetricallyEncrypted(t *testing.T) {
 
 		if !symmetric {
 			t.Errorf("symmetric is not set")
-		}
-
-		if firstTimeCalled {
-			firstTimeCalled = false
-			return []byte("wrongpassword"), nil
 		}
 
 		return []byte("password"), nil
@@ -278,7 +273,6 @@ func TestSymmetricallyEncrypted(t *testing.T) {
 		t.Errorf("LiteralData.Time is %d, want %d", md.LiteralData.Time, expectedCreationTime)
 	}
 
-	const expected = "Symmetrically encrypted.\n"
 	if string(contents) != expected {
 		t.Errorf("contents got: %s want: %s", string(contents), expected)
 	}
