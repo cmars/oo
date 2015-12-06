@@ -15,8 +15,13 @@ import (
 	"testing"
 )
 
-// TODO: add tests to check XML responses with the expected prefix path
-func TestPrefix(t *testing.T) {
+// TestStripPrefix tests the StripPrefix function. We can't test the
+// StripPrefix function with the litmus test, even though all of the litmus
+// test paths start with "/litmus/", because one of the first things that the
+// litmus test does is "MKCOL /litmus/". That request succeeds without a
+// StripPrefix, but fails with a StripPrefix because you cannot MKCOL the root
+// directory of a FileSystem.
+func TestStripPrefix(t *testing.T) {
 	const dst, blah = "Destination", "blah blah blah"
 
 	do := func(method, urlStr string, body io.Reader, wantStatusCode int, headers ...string) error {
@@ -47,13 +52,14 @@ func TestPrefix(t *testing.T) {
 	}
 	for _, prefix := range prefixes {
 		fs := NewMemFS()
-		h := &Handler{
+		h := http.Handler(&Handler{
 			FileSystem: fs,
 			LockSystem: NewMemLS(),
-		}
+		})
 		mux := http.NewServeMux()
 		if prefix != "/" {
-			h.Prefix = prefix
+			// Note that this is webdav.StripPrefix, not http.StripPrefix.
+			h = StripPrefix(prefix, h)
 		}
 		mux.Handle(prefix, h)
 		srv := httptest.NewServer(mux)
