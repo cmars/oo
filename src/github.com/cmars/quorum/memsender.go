@@ -17,19 +17,19 @@
 package quorum
 
 import (
-	"log"
-
 	"gopkg.in/errgo.v1"
+	"gopkg.in/tomb.v2"
 )
 
 type memSender struct {
 	mboxes map[string]memMbox
+	t      tomb.Tomb
 }
 
 type memMbox chan Ballot
 
 // NewMemSender returns a new in-memory implementation of Sender.
-func NewMemSender(names ...string) Sender {
+func NewMemSender(names ...string) *memSender {
 	sender := &memSender{
 		mboxes: map[string]memMbox{},
 	}
@@ -61,34 +61,35 @@ func (s *memSender) Send(ballot Ballot) error {
 
 // Close releases all resources used by the Sender, and unregisters all
 // recipients.
-func (s *memSender) Close() {
+func (s *memSender) Close() error {
 	for _, mbox := range s.mboxes {
 		close(mbox)
 	}
-	s.mboxes = map[string]memMbox{}
+	return s.t.Wait()
 }
 
 // Register registers a recipient with the Sender.
-func (s *memSender) Register(recipient string, handler func(Ballot) error) error {
+func (s *memSender) Register(recipient string, handler func(Ballot) error) {
 	mbox, ok := s.mboxes[recipient]
 	if ok {
 		close(mbox)
 	}
 	mbox = make(memMbox)
 	s.mboxes[recipient] = mbox
-	go func() {
+	s.t.Go(func() error {
 		for {
 			select {
+			case <-s.t.Dying():
+				return nil
 			case ballot, ok := <-mbox:
 				if !ok {
-					return
+					return nil
 				}
 				err := handler(ballot)
 				if err != nil {
-					log.Println("error handling ballot for recipient %q: %v", recipient, errgo.Details(err))
+					return err
 				}
 			}
 		}
-	}()
-	return nil
+	})
 }
